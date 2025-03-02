@@ -13,6 +13,12 @@ n_head = 12
 seq_len = 64
 head_embd = 64
 
+# Input X(B, T) -- Embedding + Positional Embedding --> X(B, T, C)
+# X(B, T, C) @ Param(C, 3 * C) --> QKV(B, T, 3C) --> Q(B, T, C), K(B, T, C), V(B, T, C)
+# Eg Q: Q(B, T, C) --> HQ(B, T, H, C // H) --> HQ(B, H, T, C // H)
+# HQ(B, H, T, C // H) @ HK.T(B, H, C // H, T) --> HO(B, H, T, T) --> div sqrt(C)
+# Softmax( HO(B, H, T, T) ) @ HV(B, H, T, C // H) --> HO(B, H, T, C // H) --> HO(B, T, H, C // H) --> O(B, T, C)
+
 q = torch.randn(batch_size, n_head, seq_len, head_embd).cuda()
 k = torch.randn(batch_size, n_head, seq_len, head_embd).cuda()
 v = torch.randn(batch_size, n_head, seq_len, head_embd).cuda()
@@ -28,12 +34,12 @@ def manual_attn(q, k, v):
 
 with torch.autograd.profiler.profile(use_cuda=True) as prof:
     manual_result = manual_attn(q, k, v)
-print(prof.key_averages().table(sort_by='cuda_time_total', row_limit=10))
+print(prof.key_averages().table(sort_by='cuda_time_total', row_limit=8))
 
 print('=== profiling minimal flash attention === ')
 
 with torch.autograd.profiler.profile(use_cuda=True) as prof:
     minimal_result = minimal_attn.forward(q, k, v)
-print(prof.key_averages().table(sort_by='cuda_time_total', row_limit=10))
+print(prof.key_averages().table(sort_by='cuda_time_total', row_limit=8))
 
 print('attn values sanity check:', torch.allclose(minimal_result, manual_result, rtol=0, atol=1e-02))
